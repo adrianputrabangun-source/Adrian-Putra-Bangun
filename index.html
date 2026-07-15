@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PustakaKita - SDN Klender 13</title>
+  
+  <!-- Memuat Tailwind CSS untuk desain tampilan -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Memuat Babel agar bisa membaca kode React (JSX) di dalam file HTML -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    /* Menyembunyikan scrollbar agar tampilan lebih bersih (seperti aplikasi asli) */
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-900 selection:bg-blue-200">
+  
+  <!-- Elemen utama tempat aplikasi React akan dirender -->
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module">
+    import React, { useState, useEffect } from 'https://esm.sh/react@18.2.0';
+    import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
+    import { 
+      BookOpen, Search, Library, User, Star, Award, 
+      PlayCircle, Clock, Settings, Users, Book, Headphones,
+      LogOut, Menu, X, School, CheckCircle, Info
+    } from 'https://esm.sh/lucide-react@0.263.1';
+
+    function PustakaKita() {
+      // Menyimpan semua data dari Spreadsheet (Siswa, Buku, Riwayat Pinjam)
+      const [db, setDb] = useState({ users: [], books: [], borrowed: [] });
+      const [isLoading, setIsLoading] = useState(true);
+
+      // Mengecek apakah sebelumnya sudah ada yang login di HP/Laptop ini
+      const [activeUserId, setActiveUserId] = useState(() => localStorage.getItem('pustakakita_active_user'));
+      const activeUser = db.users.find(u => u.id === activeUserId) || null;
+      
+      const [activeTab, setActiveTab] = useState('home');
+      const [toastMessage, setToastMessage] = useState('');
+      const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+      const [authMode, setAuthMode] = useState('register-choice');
+
+      useEffect(() => {
+        setIsLoading(true);
+        // Mengecek apakah aplikasi dijalankan di dalam Google Apps Script
+        if (typeof google !== 'undefined' && google.script) {
+          google.script.run.withSuccessHandler((data) => {
+            setDb(data);
+            setIsLoading(false);
+          }).getAppData();
+        } else {
+          // Mode ujicoba lokal jika tidak di dalam Google Apps Script
+          setIsLoading(false); 
+        }
+      }, []);
+
+      const showToast = (msg) => {
+        setToastMessage(msg);
+        setTimeout(() => setToastMessage(''), 4000);
+      };
+
+      const handleRegister = (e, role, additionalData) => {
+        e.preventDefault();
+        
+        const newUser = {
+          id: 'user_' + Date.now(), // Membuat ID unik berdasarkan waktu
+          role: role,
+          name: additionalData.name,
+          ...additionalData,
+          points: role === 'student' ? 0 : '',
+          level: role === 'student' ? 'Pembaca Pemula' : ''
+        };
+
+        // 1. Simpan ke layar perangkat saat ini secara langsung
+        setDb(prev => ({ ...prev, users: [...prev.users, newUser] }));
+        setActiveUserId(newUser.id);
+        localStorage.setItem('pustakakita_active_user', newUser.id);
+        
+        // 2. Kirim data ke Google Spreadsheet di balik layar
+        if (typeof google !== 'undefined' && google.script) {
+          google.script.run.withSuccessHandler(() => {
+            console.log("Tersimpan di Spreadsheet!");
+          }).registerUser(newUser);
+        }
+
+        showToast('🎉 Akun berhasil dibuat dan diamankan di sistem!');
+        setActiveTab('home');
+      };
+
+      const handleLogout = () => {
+        // Keluar langsung tanpa confirm() alert bawaan browser
+        setActiveUserId(null);
+        localStorage.removeItem('pustakakita_active_user');
+        showToast("Berhasil keluar. Sampai jumpa lagi!");
+        setIsMobileMenuOpen(false);
+      };
+
+      const handleBorrowBook = (book) => {
+        if (!activeUser || activeUser.role !== 'student') return;
+
+        // Cek apakah siswa sudah meminjam buku ini
+        const isAlreadyBorrowed = db.borrowed.some(b => b.bookId === book.id && b.userId === activeUser.id);
+        if (isAlreadyBorrowed) {
+          showToast('Membuka halaman bacaan buku...');
+          return;
+        }
+
+        const currentPoints = parseInt(activeUser.points) || 0;
+        const bookPoints = parseInt(book.points) || 0;
+        const newPoints = currentPoints + bookPoints;
+        
+        // Penentuan Level Otomatis
+        let newLevel = 'Pembaca Pemula';
+        if (newPoints >= 100) newLevel = 'Penjelajah Buku';
+        if (newPoints >= 300) newLevel = 'Kutu Buku Aktif';
+
+        const borrowRecord = { 
+          id: 'brw_' + Date.now(), 
+          bookId: book.id, 
+          userId: activeUser.id, 
+          title: book.title,
+          points: bookPoints
+        };
+
+        // 1. Update Tampilan (State) secara langsung
+        setDb(prev => ({
+          ...prev,
+          borrowed: [...prev.borrowed, { ...borrowRecord, ...book }],
+          users: prev.users.map(u => u.id === activeUser.id ? { ...u, points: newPoints, level: newLevel } : u)
+        }));
+
+        // 2. Simpan Transaksi Peminjaman ke Google Spreadsheet
+        if (typeof google !== 'undefined' && google.script) {
+          google.script.run.borrowBook(borrowRecord);
+        }
+
+        showToast(`Buku dipinjam! +${bookPoints} Poin Literasi 🎉`);
+      };
+
+      const AuthScreen = () => {
+        const [name, setName] = useState('');
+        const [nisn, setNisn] = useState('');
+        const [classGrade, setClassGrade] = useState('');
+        const [position, setPosition] = useState('');
+
+        return (
+          <div className="min-h-screen bg-white flex flex-col md:flex-row">
+            <div className="w-full md:w-1/2 bg-blue-700 text-white p-8 md:p-16 flex flex-col justify-center relative">
+              <div className="relative z-10 text-center md:text-left">
+                <div className="inline-flex p-4 bg-white/20 rounded-2xl mb-6 backdrop-blur-sm"><School size={48} /></div>
+                <h1 className="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">Perpustakaan Digital<br/><span className="text-yellow-400">SDN Klender 13</span></h1>
+                <p className="text-lg text-blue-100 mb-8">Sistem Informasi Perpustakaan (Terkoneksi Database)</p>
+              </div>
+            </div>
+            
+            <div className="w-full md:w-1/2 flex items-center justify-center p-6 bg-gray-50">
+              <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+                {authMode === 'register-choice' && (
+                  <div className="animate-fade-in space-y-4">
+                    <h2 className="text-2xl font-bold text-center mb-2 text-gray-800">Masuk ke PustakaKita</h2>
+                    <p className="text-center text-gray-500 text-sm mb-6">Pilih akses sesuai dengan peran Anda di sekolah.</p>
+                    
+                    <button onClick={() => setAuthMode('register-student')} className="w-full bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 text-blue-800 font-semibold p-4 rounded-xl flex items-center transition-colors">
+                      <div className="bg-blue-200 p-2 rounded-lg mr-4"><User size={20}/></div>
+                      Masuk sebagai Siswa
+                    </button>
+                    <button onClick={() => setAuthMode('register-teacher')} className="w-full bg-green-50 hover:bg-green-100 border-2 border-green-200 text-green-800 font-semibold p-4 rounded-xl flex items-center transition-colors">
+                      <div className="bg-green-200 p-2 rounded-lg mr-4"><Users size={20}/></div>
+                      Masuk sebagai Guru
+                    </button>
+                  </div>
+                )}
+
+                {authMode === 'register-student' && (
+                  <form onSubmit={(e) => handleRegister(e, 'student', { name, nisn, classGrade })} className="animate-fade-in space-y-4">
+                    <button type="button" onClick={() => setAuthMode('register-choice')} className="text-gray-400 hover:text-gray-700 text-sm flex items-center mb-4"><X size={16} className="mr-1"/> Kembali</button>
+                    <h2 className="text-2xl font-bold text-gray-800">Daftar Siswa 🎒</h2>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600">Nama Lengkap</label>
+                      <input required value={name} onChange={e=>setName(e.target.value)} placeholder="Contoh: Budi Santoso" className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 mt-1 outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600">Kelas</label>
+                      <select required value={classGrade} onChange={e=>setClassGrade(e.target.value)} className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-blue-500 mt-1 outline-none">
+                        <option value="">-- Pilih Kelas --</option>
+                        {[1,2,3,4,5,6].map(c => <option key={c} value={`Kelas ${c}`}>Kelas {c}</option>)}
+                      </select>
+                    </div>
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-4 rounded-xl mt-4 transition-colors">Mulai Membaca</button>
+                  </form>
+                )}
+
+                {authMode === 'register-teacher' && (
+                  <form onSubmit={(e) => handleRegister(e, 'teacher', { name, position })} className="animate-fade-in space-y-4">
+                    <button type="button" onClick={() => setAuthMode('register-choice')} className="text-gray-400 hover:text-gray-700 text-sm flex items-center mb-4"><X size={16} className="mr-1"/> Kembali</button>
+                    <h2 className="text-2xl font-bold text-gray-800">Masuk Dasbor Guru 👨‍🏫</h2>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600">Nama Lengkap & Gelar</label>
+                      <input required value={name} onChange={e=>setName(e.target.value)} placeholder="Contoh: Siti Aminah, S.Pd" className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-green-500 mt-1 outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-600">Jabatan / Wali Kelas</label>
+                      <input required value={position} onChange={e=>setPosition(e.target.value)} placeholder="Contoh: Wali Kelas 5A" className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-green-500 mt-1 outline-none" />
+                    </div>
+                    <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold p-4 rounded-xl mt-4 transition-colors">Masuk Dasbor</button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      if (!activeUser) return <AuthScreen />;
+
+      if (isLoading) {
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 space-y-4">
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-gray-600 font-semibold animate-pulse">Menghubungkan ke Database Sekolah...</p>
+          </div>
+        );
+      }
+
+      const myBorrowedBooks = db.borrowed.filter(b => b.userId === activeUser.id);
+      const allStudents = db.users.filter(u => u.role === 'student');
+      
+      // Jika database buku masih kosong, beri tahu
+      const isBooksEmpty = db.books.length === 0;
+
+      return (
+        <div className="min-h-screen bg-gray-50 pb-20">
+          
+          {}
+          <nav className="bg-white shadow-sm p-4 flex justify-between items-center sticky top-0 z-40">
+            <div className="flex items-center gap-3 text-blue-700">
+              <div className="bg-blue-100 p-2 rounded-lg"><School size={24} /></div>
+              <div>
+                <p className="font-bold text-gray-800 leading-tight">PustakaKita</p>
+                <p className="text-[10px] text-blue-600 font-bold">SDN KLENDER 13</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="hidden md:block text-right">
+                <p className="text-sm font-bold text-gray-800">{activeUser.name}</p>
+                <p className="text-xs text-gray-500">{activeUser.role === 'student' ? activeUser.classGrade : 'Guru'}</p>
+              </div>
+              <button onClick={handleLogout} className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100 flex items-center gap-2">
+                <LogOut size={18}/><span className="text-sm font-bold hidden md:inline">Keluar</span>
+              </button>
+            </div>
+          </nav>
+
+          <main className="max-w-4xl mx-auto p-4 mt-4 space-y-8 animate-fade-in">
+            
+            {}
+            {activeUser.role === 'student' && (
+              <>
+                <div className="bg-gradient-to-r from-blue-600 to-blue-500 p-8 rounded-3xl text-white shadow-lg relative overflow-hidden">
+                  <div className="absolute right-0 top-0 w-48 h-48 bg-white opacity-10 rounded-full translate-x-1/2 -translate-y-1/2"></div>
+                  <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div>
+                      <h2 className="text-3xl font-extrabold mb-1">Halo, {activeUser.name}!</h2>
+                      <p className="text-blue-100">{activeUser.classGrade} • SD Negeri Klender 13</p>
+                    </div>
+                    <div className="bg-white/20 backdrop-blur-sm p-4 rounded-2xl flex items-center gap-4 border border-white/30">
+                      <div className="bg-yellow-400 p-3 rounded-xl"><Award size={24} className="text-yellow-900"/></div>
+                      <div>
+                        <p className="text-xs text-blue-100 font-medium">Poin & Level</p>
+                        <p className="text-2xl font-bold text-yellow-300 leading-none">{activeUser.points || 0} <span className="text-sm text-white font-normal">Pts</span></p>
+                        <p className="text-xs font-semibold mt-1">{activeUser.level}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-xl text-gray-800 mb-4 flex items-center gap-2"><Book size={20}/> Katalog Buku Tersedia</h3>
+                  
+                  {isBooksEmpty ? (
+                    <div className="bg-white p-8 rounded-2xl border text-center text-gray-500">
+                      Katalog buku masih kosong. Aplikasi berhasil terhubung ke Spreadsheet, namun Admin/Guru belum menambahkan data buku di baris Spreadsheet "Books".
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {db.books.map(book => (
+                        <div key={book.id} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col">
+                          <img src={book.cover} className="w-full aspect-[2/3] object-cover rounded-xl mb-3 bg-gray-100" alt={book.title} />
+                          <h4 className="font-bold text-sm text-gray-800 line-clamp-2 leading-tight">{book.title}</h4>
+                          <p className="text-xs text-gray-500 mt-1 mb-3 flex-1">{book.category}</p>
+                          <button onClick={() => handleBorrowBook(book)} className="w-full bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 text-xs font-bold py-2.5 rounded-xl transition-colors">
+                            Pinjam (+{book.points} Poin)
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {myBorrowedBooks.length > 0 && (
+                  <div>
+                    <h3 className="font-bold text-xl text-gray-800 mb-4 flex items-center gap-2"><Library size={20}/> Rak Bukuku ({myBorrowedBooks.length})</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {myBorrowedBooks.map(book => (
+                        <div key={book.id} className="bg-white p-4 rounded-2xl flex gap-4 border border-gray-200">
+                          <div className="w-16 h-20 bg-gray-100 rounded-lg overflow-hidden shrink-0">
+                             {/* Gambar cover (jika ada di database riwayat) */}
+                            <div className="w-full h-full bg-blue-100 flex items-center justify-center text-blue-400"><Book size={24}/></div>
+                          </div>
+                          <div className="flex-1 flex flex-col justify-between">
+                            <div>
+                              <h4 className="font-bold text-gray-800 line-clamp-1">{book.title}</h4>
+                              <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-md font-bold mt-1 inline-block">Dipinjam</span>
+                            </div>
+                            <button onClick={() => showToast('Membuka halaman PDF Buku...')} className="text-blue-600 font-bold flex items-center gap-1 text-sm self-start hover:text-blue-800"><PlayCircle size={16}/> Mulai Membaca</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {}
+            {activeUser.role === 'teacher' && (
+              <div className="space-y-6">
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Dasbor Guru 👨‍🏫</h2>
+                  <p className="text-gray-500 mb-6">Pantau aktivitas literasi seluruh siswa Anda yang terdaftar di sistem.</p>
+                  
+                  {allStudents.length === 0 ? (
+                    <div className="text-center p-8 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                      <p className="text-gray-500 font-medium">Belum ada siswa yang mendaftar ke aplikasi perpustakaan.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-blue-50 text-blue-800 text-sm">
+                            <th className="p-4 rounded-tl-xl font-bold">Nama Siswa</th>
+                            <th className="p-4 font-bold">Kelas</th>
+                            <th className="p-4 font-bold">Level Literasi</th>
+                            <th className="p-4 rounded-tr-xl font-bold">Total Poin</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allStudents.map(s => (
+                            <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="p-4 font-semibold text-gray-800">{s.name}</td>
+                              <td className="p-4 text-gray-600">{s.classGrade}</td>
+                              <td className="p-4 text-gray-600">
+                                <span className="bg-gray-100 px-2 py-1 rounded text-xs font-medium">{s.level}</span>
+                              </td>
+                              <td className="p-4 font-bold text-yellow-600 flex items-center gap-1"><Award size={16}/> {s.points || 0}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </main>
+
+          {}
+          {toastMessage && (
+             <div className="fixed top-24 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur text-white px-6 py-3.5 rounded-2xl shadow-2xl text-sm font-semibold flex items-center gap-3 z-50 animate-fade-in border border-gray-700">
+                <CheckCircle size={20} className="text-green-400"/> {toastMessage}
+             </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = createRoot(document.getElementById('root'));
+    root.render(<PustakaKita />);
+  </script>
+</body>
+</html>
