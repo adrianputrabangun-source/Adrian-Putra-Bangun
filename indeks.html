@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PustakaKita - SDN Klender 13</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <style>
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+    @keyframes fadeIn { 
+      from { opacity: 0; transform: translateY(10px); } 
+      to { opacity: 1; transform: translateY(0); } 
+    }
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-900 selection:bg-blue-200">
+  
+  <!-- Elemen utama tempat aplikasi akan dimuat -->
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module">
+    import React, { useState } from 'https://esm.sh/react@18.2.0';
+    import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
+    import { 
+      BookOpen, Search, Library, User, Star, Award, 
+      TrendingUp, CheckCircle, PlayCircle, Clock,
+      Settings, Users, PlusCircle, Book, Headphones,
+      LogOut, Menu, X, School
+    } from 'https://esm.sh/lucide-react@0.263.1';
+
+    // --- MOCK DATA ---
+    const MOCK_BOOKS = [
+      { id: 1, title: 'Fisika Dasar untuk SD', author: 'Kemdikbud', category: 'Pelajaran', cover: 'https://placehold.co/300x450/2563eb/ffffff?text=Sains+SD', rating: 4.5, points: 50 },
+      { id: 2, title: 'Kisah Si Pitung', author: 'Cerita Rakyat Betawi', category: 'Cerita Rakyat', cover: 'https://placehold.co/300x450/16a34a/ffffff?text=Si+Pitung', rating: 4.8, points: 30 },
+      { id: 3, title: 'Menjadi Pelajar Pancasila', author: 'Dr. Seto', category: 'Pengembangan Diri', cover: 'https://placehold.co/300x450/ea580c/ffffff?text=Pelajar+Pancasila', rating: 4.9, points: 40 },
+      { id: 4, title: 'Ensiklopedia Tata Surya', author: 'Sains Populer', category: 'Sains', cover: 'https://placehold.co/300x450/9333ea/ffffff?text=Tata+Surya', rating: 4.7, points: 60, hasAudio: true },
+      { id: 5, title: 'Petualangan Si Kancil', author: 'Komik Edukasi', category: 'Komik Edukatif', cover: 'https://placehold.co/300x450/eab308/ffffff?text=Si+Kancil', rating: 4.6, points: 20 },
+      { id: 6, title: 'Sejarah Kemerdekaan', author: 'Tim Sejarah', category: 'Pelajaran', cover: 'https://placehold.co/300x450/dc2626/ffffff?text=Sejarah', rating: 4.8, points: 50 },
+    ];
+
+    const CATEGORIES = ['Semua', 'Pelajaran', 'Cerita Rakyat', 'Pengembangan Diri', 'Sains', 'Komik Edukatif'];
+
+    function PustakaKita() {
+      const [currentUser, setCurrentUser] = useState(null); // null, 'student', 'teacher', 'admin'
+      const [activeTab, setActiveTab] = useState('home');
+      const [studentStats, setStudentStats] = useState({ points: 120, readBooks: 3, level: 'Pembaca Rajin' });
+      const [borrowedBooks, setBorrowedBooks] = useState([]);
+      const [toastMessage, setToastMessage] = useState('');
+      const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+      
+      const [authMode, setAuthMode] = useState('login'); // 'login', 'register-choice', 'register-student', 'register-teacher'
+
+      const showToast = (msg) => {
+        setToastMessage(msg);
+        setTimeout(() => setToastMessage(''), 3000);
+      };
+
+      const handleLogin = (role) => {
+        setCurrentUser(role);
+        setActiveTab('home');
+        showToast(`Berhasil masuk ke Portal SDN Klender 13 sebagai ${role === 'student' ? 'Siswa' : role === 'teacher' ? 'Guru' : 'Admin'}`);
+      };
+
+      const handleLogout = () => {
+        setCurrentUser(null);
+        setIsMobileMenuOpen(false);
+      };
+
+      const handleReadBook = (book) => {
+        if (!borrowedBooks.find(b => b.id === book.id)) {
+          setBorrowedBooks([...borrowedBooks, book]);
+          setStudentStats(prev => ({ ...prev, points: prev.points + book.points, readBooks: prev.readBooks + 1 }));
+          showToast(`Berhasil meminjam buku! Selamat membaca (+${book.points} Poin) 🎉`);
+        } else {
+          showToast('Melanjutkan bacaan...');
+        }
+      };
+
+      const AuthScreen = () => {
+        const handleSimulateRegister = (e) => {
+          e.preventDefault();
+          showToast('Pendaftaran berhasil! Silakan masuk dengan akun baru Anda.');
+          setAuthMode('login');
+        };
+
+        return (
+          <div className="min-h-screen bg-white flex flex-col md:flex-row">
+            {/* Left Side - Branding */}
+            <div className="w-full md:w-1/2 bg-blue-700 text-white p-8 md:p-16 flex flex-col justify-center relative overflow-hidden">
+              <div className="absolute inset-0 opacity-10 pointer-events-none">
+                <svg className="h-full w-full" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                   <path fill="white" d="M0 100 C 20 0 50 0 100 100 Z" />
+                </svg>
+              </div>
+              <div className="relative z-10 max-w-lg mx-auto md:mx-0 text-center md:text-left">
+                <div className="inline-flex items-center justify-center p-3 bg-white/20 rounded-2xl mb-6 backdrop-blur-sm">
+                  <School size={48} className="text-white" />
+                </div>
+                <h1 className="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
+                  Perpustakaan Digital<br/>
+                  <span className="text-yellow-400">SDN Klender 13</span>
+                </h1>
+                <p className="text-lg md:text-xl text-blue-100 mb-8">
+                  Gerbang Literasi Digital Generasi Masa Kini. Jelajahi ribuan buku pelajaran dan cerita rakyat di mana saja, kapan saja!
+                </p>
+                <div className="hidden md:flex space-x-4">
+                  <div className="bg-white/10 p-4 rounded-xl border border-white/20">
+                    <BookOpen size={24} className="mb-2 text-yellow-400" />
+                    <p className="font-semibold">+1,000 Buku</p>
+                  </div>
+                  <div className="bg-white/10 p-4 rounded-xl border border-white/20">
+                    <Award size={24} className="mb-2 text-yellow-400" />
+                    <p className="font-semibold">Sistem Poin</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side - Dynamic Forms */}
+            <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-8 bg-gray-50 overflow-y-auto">
+              <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-xl border border-gray-100 my-8">
+                
+                {/* --- VIEW: LOGIN --- */}
+                {authMode === 'login' && (
+                  <div className="animate-fade-in">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2 text-center">Selamat Datang 👋</h2>
+                    <p className="text-gray-500 text-center mb-8 text-sm">Silakan masuk menggunakan akun sekolah Anda</p>
+                    
+                    <div className="space-y-4">
+                      <button onClick={() => handleLogin('student')} className="w-full bg-white border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 text-gray-800 font-semibold py-4 px-6 rounded-xl flex items-center transition-all group">
+                        <div className="bg-blue-100 p-2 rounded-lg group-hover:bg-blue-200 transition-colors">
+                          <User size={24} className="text-blue-600" />
+                        </div>
+                        <div className="ml-4 text-left">
+                          <span className="block text-base">Masuk sebagai Siswa</span>
+                          <span className="block text-xs text-gray-500 font-normal">Gunakan akun Belajar.id / NISN</span>
+                        </div>
+                      </button>
+                      
+                      <button onClick={() => handleLogin('teacher')} className="w-full bg-white border-2 border-gray-200 hover:border-green-500 hover:bg-green-50 text-gray-800 font-semibold py-4 px-6 rounded-xl flex items-center transition-all group">
+                        <div className="bg-green-100 p-2 rounded-lg group-hover:bg-green-200 transition-colors">
+                          <Users size={24} className="text-green-600" />
+                        </div>
+                        <div className="ml-4 text-left">
+                          <span className="block text-base">Masuk sebagai Guru</span>
+                          <span className="block text-xs text-gray-500 font-normal">Wali Kelas & Guru Mapel</span>
+                        </div>
+                      </button>
+
+                      <button onClick={() => handleLogin('admin')} className="w-full bg-white border-2 border-gray-200 hover:border-orange-500 hover:bg-orange-50 text-gray-800 font-semibold py-3 px-6 rounded-xl flex items-center transition-all group opacity-80 hover:opacity-100">
+                        <div className="bg-orange-100 p-2 rounded-lg group-hover:bg-orange-200 transition-colors">
+                          <Settings size={20} className="text-orange-600" />
+                        </div>
+                        <div className="ml-4 text-left">
+                          <span className="block text-sm">Admin Perpustakaan</span>
+                        </div>
+                      </button>
+                    </div>
+
+                    <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+                      <p className="text-sm text-gray-600">
+                        Belum punya akun?{' '}
+                        <button onClick={() => setAuthMode('register-choice')} className="text-blue-600 font-bold hover:underline">
+                          Daftar Sekarang
+                        </button>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* --- VIEW: REGISTER CHOICE --- */}
+                {authMode === 'register-choice' && (
+                  <div className="animate-fade-in">
+                    <button onClick={() => setAuthMode('login')} className="text-gray-400 hover:text-gray-800 mb-4 flex items-center text-sm font-medium transition-colors">
+                      <X size={16} className="mr-1"/> Batal
+                    </button>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Pendaftaran Akun Baru 📝</h2>
+                    <p className="text-gray-500 mb-8 text-sm">Silakan pilih peran Anda di SDN Klender 13</p>
+                    
+                    <div className="space-y-4">
+                      <button onClick={() => setAuthMode('register-student')} className="w-full bg-blue-50 border-2 border-blue-200 hover:border-blue-500 text-blue-800 font-semibold py-4 px-6 rounded-xl flex items-center transition-all">
+                        <div className="bg-blue-200 p-2 rounded-lg">
+                          <User size={24} className="text-blue-700" />
+                        </div>
+                        <div className="ml-4 text-left">
+                          <span className="block text-base">Daftar sebagai Siswa</span>
+                        </div>
+                      </button>
+                      
+                      <button onClick={() => setAuthMode('register-teacher')} className="w-full bg-green-50 border-2 border-green-200 hover:border-green-500 text-green-800 font-semibold py-4 px-6 rounded-xl flex items-center transition-all">
+                        <div className="bg-green-200 p-2 rounded-lg">
+                          <Users size={24} className="text-green-700" />
+                        </div>
+                        <div className="ml-4 text-left">
+                          <span className="block text-base">Daftar sebagai Guru</span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* --- VIEW: REGISTER STUDENT FORM --- */}
+                {authMode === 'register-student' && (
+                  <div className="animate-fade-in">
+                    <button onClick={() => setAuthMode('register-choice')} className="text-gray-400 hover:text-gray-800 mb-4 flex items-center text-sm font-medium transition-colors">
+                      <X size={16} className="mr-1"/> Kembali
+                    </button>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Pendaftaran Siswa 🎒</h2>
+                    <p className="text-gray-500 mb-6 text-sm">Lengkapi data diri kamu untuk mulai membaca.</p>
+                    
+                    <form onSubmit={handleSimulateRegister} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Nama Lengkap</label>
+                        <input required type="text" placeholder="Contoh: Budi Santoso" className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">NISN (Nomor Induk Siswa)</label>
+                        <input required type="number" placeholder="Masukkan 10 digit NISN" className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Kelas</label>
+                        <select required className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                          <option value="">-- Pilih Kelas --</option>
+                          <option value="1">Kelas 1</option>
+                          <option value="2">Kelas 2</option>
+                          <option value="3">Kelas 3</option>
+                          <option value="4">Kelas 4</option>
+                          <option value="5">Kelas 5</option>
+                          <option value="6">Kelas 6</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Kata Sandi</label>
+                        <input required type="password" placeholder="Buat kata sandi yang mudah diingat" className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:outline-none" />
+                      </div>
+                      <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-colors mt-2">
+                        Daftar Sekarang
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {/* --- VIEW: REGISTER TEACHER FORM --- */}
+                {authMode === 'register-teacher' && (
+                  <div className="animate-fade-in">
+                    <button onClick={() => setAuthMode('register-choice')} className="text-gray-400 hover:text-gray-800 mb-4 flex items-center text-sm font-medium transition-colors">
+                      <X size={16} className="mr-1"/> Kembali
+                    </button>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Pendaftaran Guru 👨‍🏫</h2>
+                    <p className="text-gray-500 mb-6 text-sm">Lengkapi data untuk memantau literasi siswa.</p>
+                    
+                    <form onSubmit={handleSimulateRegister} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Nama Lengkap & Gelar</label>
+                        <input required type="text" placeholder="Contoh: Dra. Siti Aminah" className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-green-500 focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">NIP (Opsional)</label>
+                        <input type="number" placeholder="Nomor Induk Pegawai" className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-green-500 focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Jabatan / Wali Kelas</label>
+                        <input required type="text" placeholder="Contoh: Wali Kelas 5A / Guru Agama" className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-green-500 focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Kata Sandi</label>
+                        <input required type="password" placeholder="Buat kata sandi" className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-green-500 focus:outline-none" />
+                      </div>
+                      <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl transition-colors mt-2">
+                        Daftar Sebagai Guru
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      const BookCard = ({ book, onRead }) => (
+        <div className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-gray-100 overflow-hidden flex flex-col h-full">
+          <div className="relative pt-[120%]"> {/* Aspect Ratio Box */}
+            <img src={book.cover} alt={book.title} className="absolute top-0 left-0 w-full h-full object-cover" />
+            {book.hasAudio && (
+              <div className="absolute top-2 right-2 bg-black/60 p-2 rounded-full backdrop-blur-sm">
+                <Headphones size={16} className="text-white" />
+              </div>
+            )}
+          </div>
+          <div className="p-4 flex flex-col flex-1">
+            <div className="flex items-center space-x-1 mb-2">
+              <Star size={14} className="text-yellow-400 fill-current" />
+              <span className="text-xs font-semibold text-gray-600">{book.rating}</span>
+              <span className="text-xs text-gray-300">•</span>
+              <span className="text-xs text-blue-600 font-medium">{book.category}</span>
+            </div>
+            <h4 className="font-bold text-gray-800 leading-tight mb-1 line-clamp-2">{book.title}</h4>
+            <p className="text-sm text-gray-500 mb-4 flex-1">{book.author}</p>
+            <button 
+              onClick={onRead}
+              className="w-full bg-blue-50 text-blue-700 text-sm font-semibold py-2.5 rounded-xl hover:bg-blue-600 hover:text-white transition-colors"
+            >
+              Pinjam Buku
+            </button>
+          </div>
+        </div>
+      );
+
+      const StudentHome = () => (
+        <div className="animate-fade-in space-y-8">
+          {/* Hero / Gamification Banner */}
+          <div className="bg-gradient-to-r from-blue-700 to-blue-500 rounded-3xl p-6 md:p-10 text-white shadow-xl relative overflow-hidden">
+            {/* Decorative elements */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/4"></div>
+            <div className="absolute bottom-0 right-20 w-32 h-32 bg-white opacity-10 rounded-full translate-y-1/2"></div>
+            
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="flex items-center gap-4 md:gap-6">
+                <div className="w-16 h-16 md:w-20 md:h-20 bg-white text-blue-700 rounded-full flex items-center justify-center text-2xl md:text-3xl font-extrabold shadow-inner">
+                  B
+                </div>
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold mb-1">Halo, Budi! 👋</h2>
+                  <p className="text-blue-100 font-medium">Siswa Kelas 5A - SDN Klender 13</p>
+                </div>
+              </div>
+              
+              {/* Gamification Stats Card */}
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 md:px-6 md:py-4 border border-white/20 flex gap-6 items-center w-full md:w-auto">
+                <div className="flex items-center gap-3">
+                  <div className="bg-yellow-400 p-3 rounded-full shadow-lg">
+                    <Award size={24} className="text-yellow-900" />
+                  </div>
+                  <div>
+                    <p className="text-xs md:text-sm text-blue-100">Total Poin Literasi</p>
+                    <p className="font-bold text-xl md:text-2xl text-yellow-400 drop-shadow-sm">{studentStats.points} Pts</p>
+                  </div>
+                </div>
+                <div className="h-10 w-px bg-white/20"></div>
+                <div>
+                  <p className="text-xs md:text-sm text-blue-100">Level Pembaca</p>
+                  <p className="font-bold text-lg md:text-xl">{studentStats.level}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Reading Challenge */}
+          <div>
+            <div className="flex justify-between items-end mb-4">
+              <h3 className="text-lg font-bold text-gray-800">Tantangan Bulan Ini 🔥</h3>
+            </div>
+            <div className="bg-gradient-to-r from-orange-400 to-red-500 rounded-2xl p-5 md:p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h4 className="font-bold text-lg">Baca 3 Buku Cerita Rakyat Betawi</h4>
+                  <span className="text-xs bg-white text-red-600 px-3 py-1 rounded-full font-bold shadow-sm">+100 Poin</span>
+                </div>
+                <p className="text-red-100 text-sm mb-4 md:mb-0">Ayo kenali budaya lokal kita! Baca buku tentang pahlawan dan legenda Jakarta.</p>
+              </div>
+              <div className="w-full md:w-1/3">
+                <div className="flex justify-between text-sm font-medium mb-2">
+                  <span>Progres</span>
+                  <span>1/3 Buku</span>
+                </div>
+                <div className="w-full bg-black/20 h-3 rounded-full overflow-hidden">
+                  <div className="bg-white w-1/3 h-full rounded-full transition-all duration-1000"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Rekomendasi Buku */}
+          <div>
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Rekomendasi Untukmu</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+              {MOCK_BOOKS.map(book => (
+                <BookCard key={book.id} book={book} onRead={() => handleReadBook(book)} />
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+
+      const StudentSearch = () => {
+        const [searchQuery, setSearchQuery] = useState('');
+        const [activeCategory, setActiveCategory] = useState('Semua');
+
+        const filteredBooks = MOCK_BOOKS.filter(book => {
+          const matchCategory = activeCategory === 'Semua' || book.category === activeCategory;
+          const matchSearch = book.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                              book.author.toLowerCase().includes(searchQuery.toLowerCase());
+          return matchCategory && matchSearch;
+        });
+
+        return (
+          <div className="animate-fade-in space-y-6">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+              <h2 className="text-2xl font-bold text-gray-800 mb-6">Katalog Perpustakaan 🔍</h2>
+              
+              {/* Search Bar */}
+              <div className="relative mb-6">
+                <Search className="absolute left-4 top-4 text-gray-400" size={24} />
+                <input 
+                  type="text" 
+                  placeholder="Cari judul buku pelajaran, penulis, dll..." 
+                  className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white text-gray-700 transition-all"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              
+              {/* Categories */}
+              <div className="flex overflow-x-auto space-x-2 pb-2 scrollbar-hide">
+                {CATEGORIES.map(cat => (
+                  <button 
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-semibold transition-colors ${
+                      activeCategory === cat 
+                        ? 'bg-blue-600 text-white shadow-md' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Results Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+              {filteredBooks.map(book => (
+                <BookCard key={book.id} book={book} onRead={() => handleReadBook(book)} />
+              ))}
+              {filteredBooks.length === 0 && (
+                <div className="col-span-full text-center text-gray-500 py-12 bg-white rounded-3xl border border-gray-100">
+                  <BookOpen size={48} className="mx-auto text-gray-300 mb-4" />
+                  <p className="text-lg font-medium">Buku tidak ditemukan.</p>
+                  <p className="text-sm">Coba kata kunci lain atau pilih kategori berbeda.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      };
+
+      const StudentLibrary = () => (
+        <div className="animate-fade-in space-y-6">
+          <h2 className="text-2xl font-bold text-gray-800">Rak Bukuku 📚</h2>
+          
+          <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3 mb-6">
+              <Clock className="text-blue-600" size={24} />
+              <h3 className="font-bold text-lg text-gray-800">Sedang Dipinjam ({borrowedBooks.length})</h3>
+            </div>
+            
+            {borrowedBooks.length === 0 ? (
+              <div className="bg-gray-50 rounded-2xl p-10 text-center border-2 border-dashed border-gray-200">
+                <Library size={48} className="mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-600 font-medium mb-4">Rak bukumu masih kosong.</p>
+                <button 
+                  onClick={() => setActiveTab('search')} 
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-semibold transition-colors"
+                >
+                  Cari Buku Sekarang
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {borrowedBooks.map(book => (
+                  <div key={book.id} className="bg-gray-50 p-4 rounded-2xl flex gap-4 border border-gray-100 hover:border-blue-200 transition-colors">
+                    <img src={book.cover} alt={book.title} className="w-20 h-28 md:w-24 md:h-32 object-cover rounded-xl shadow-sm" />
+                    <div className="flex-1 flex flex-col">
+                      <h4 className="font-bold text-gray-800 leading-tight mb-1 line-clamp-2">{book.title}</h4>
+                      <p className="text-xs md:text-sm text-gray-500 mb-auto">{book.author}</p>
+                      
+                      <div className="mt-4">
+                        <div className="flex justify-between text-xs font-medium text-gray-600 mb-1">
+                          <span>Progres Membaca</span>
+                          <span>35%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 h-2 rounded-full mb-3">
+                          <div className="bg-green-500 w-1/3 h-full rounded-full"></div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-md font-bold">Sisa 3 Hari</span>
+                          <button className="text-blue-600 font-bold text-sm hover:text-blue-800 flex items-center gap-1">
+                            <PlayCircle size={16} /> Lanjut
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+
+      const TeacherDashboard = () => (
+        <div className="animate-fade-in space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">Dasbor Guru - SDN Klender 13 👨‍🏫</h2>
+              <p className="text-gray-500">Selamat datang, Bapak/Ibu Guru. Pantau aktivitas literasi kelas Anda di sini.</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            <div className="bg-blue-600 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden">
+              <BookOpen size={48} className="absolute -right-4 -bottom-4 opacity-20" />
+              <p className="text-4xl font-extrabold mb-1">345</p>
+              <p className="text-blue-100 font-medium">Buku Dibaca Bulan Ini</p>
+            </div>
+            <div className="bg-green-500 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden">
+              <TrendingUp size={48} className="absolute -right-4 -bottom-4 opacity-20" />
+              <p className="text-4xl font-extrabold mb-1">92%</p>
+              <p className="text-green-100 font-medium">Partisipasi Kelas 5</p>
+            </div>
+            <div className="bg-purple-500 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden">
+              <Award size={48} className="absolute -right-4 -bottom-4 opacity-20" />
+              <p className="text-4xl font-extrabold mb-1">2.4K</p>
+              <p className="text-purple-100 font-medium">Total Poin Kelas</p>
+            </div>
+            <div className="bg-orange-500 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden">
+              <Users size={48} className="absolute -right-4 -bottom-4 opacity-20" />
+              <p className="text-4xl font-extrabold mb-1">32</p>
+              <p className="text-orange-100 font-medium">Siswa Aktif</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-bold text-lg text-gray-800">Tugas Membaca Aktif</h3>
+              <button className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-xl text-sm font-semibold flex items-center transition-colors">
+                <PlusCircle size={18} className="mr-2"/> Buat Tugas
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <p className="font-bold text-gray-800 text-lg">Rangkuman Buku Sejarah "Si Pitung"</p>
+                  <p className="text-sm text-gray-500 mt-1">Kelas: 5A • Batas Waktu: 20 Juli 2026</p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-green-200">
+                    28/32 Siswa Selesai
+                  </div>
+                  <button className="bg-white border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+                    Lihat Hasil
+                  </button>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 p-5 rounded-2xl border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <p className="font-bold text-gray-800 text-lg">Membaca Sains: Tata Surya</p>
+                  <p className="text-sm text-gray-500 mt-1">Kelas: 6B • Batas Waktu: 25 Juli 2026</p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="bg-yellow-100 text-yellow-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-yellow-200">
+                    15/30 Siswa Selesai
+                  </div>
+                  <button className="bg-white border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+                    Lihat Hasil
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+
+      const AdminDashboard = () => (
+        <div className="animate-fade-in space-y-6">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-800">Admin Perpustakaan - SDN Klender 13 ⚙️</h2>
+            <p className="text-gray-500">Kelola katalog buku, pengguna, dan pengaturan sistem portal literasi.</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:border-blue-300 transition-colors cursor-pointer group flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="bg-blue-100 p-4 rounded-2xl text-blue-600 group-hover:scale-110 transition-transform">
+                  <Book size={28}/>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-800 group-hover:text-blue-700 transition-colors">Kelola Katalog Buku</p>
+                  <p className="text-sm text-gray-500">1,240 Buku Tersedia di Sistem</p>
+                </div>
+              </div>
+              <div className="text-gray-300 group-hover:text-blue-500">➔</div>
+            </div>
+
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:border-orange-300 transition-colors cursor-pointer group flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="bg-orange-100 p-4 rounded-2xl text-orange-600 group-hover:scale-110 transition-transform">
+                  <Users size={28}/>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-800 group-hover:text-orange-700 transition-colors">Kelola Pengguna</p>
+                  <p className="text-sm text-gray-500">450 Siswa & 30 Guru Aktif</p>
+                </div>
+              </div>
+              <div className="text-gray-300 group-hover:text-orange-500">➔</div>
+            </div>
+            
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:border-green-300 transition-colors cursor-pointer group flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="bg-green-100 p-4 rounded-2xl text-green-600 group-hover:scale-110 transition-transform">
+                  <TrendingUp size={28}/>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-gray-800 group-hover:text-green-700 transition-colors">Statistik Kunjungan</p>
+                  <p className="text-sm text-gray-500">Laporan Aktivitas Harian/Bulanan</p>
+                </div>
+              </div>
+              <div className="text-gray-300 group-hover:text-green-500">➔</div>
+            </div>
+          </div>
+        </div>
+      );
+
+      const DesktopNav = () => (
+        <nav className="hidden md:flex fixed top-0 w-full bg-white shadow-sm z-40 border-b border-gray-100">
+          <div className="max-w-7xl mx-auto px-6 w-full h-20 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-600 p-2 rounded-lg text-white">
+                <School size={24} />
+              </div>
+              <div>
+                <h1 className="font-bold text-xl text-gray-800 leading-tight">PustakaKita</h1>
+                <p className="text-xs text-blue-600 font-semibold tracking-wide">SDN KLENDER 13</p>
+              </div>
+            </div>
+
+            {currentUser === 'student' && (
+              <div className="flex space-x-2">
+                <button onClick={() => setActiveTab('home')} className={`px-4 py-2 rounded-xl font-semibold transition-all ${activeTab === 'home' ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}>Beranda</button>
+                <button onClick={() => setActiveTab('search')} className={`px-4 py-2 rounded-xl font-semibold transition-all ${activeTab === 'search' ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}>Katalog Buku</button>
+                <button onClick={() => setActiveTab('library')} className={`px-4 py-2 rounded-xl font-semibold transition-all ${activeTab === 'library' ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}>Rak Bukuku</button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-4">
+              <div className="text-right hidden lg:block">
+                <p className="text-sm font-bold text-gray-800">{currentUser === 'student' ? 'Budi (Siswa)' : currentUser === 'teacher' ? 'Bpk. Guru' : 'Admin'}</p>
+                <button onClick={handleLogout} className="text-xs text-red-500 font-medium hover:underline">Keluar Akun</button>
+              </div>
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold border-2 border-blue-200">
+                {currentUser === 'student' ? 'B' : 'G'}
+              </div>
+            </div>
+          </div>
+        </nav>
+      );
+
+      const MobileHeader = () => (
+        <div className="md:hidden fixed top-0 w-full bg-white shadow-sm z-40 border-b border-gray-100 h-16 flex items-center justify-between px-4">
+          <div className="flex items-center gap-2">
+            <div className="bg-blue-600 p-1.5 rounded-md text-white">
+              <School size={20} />
+            </div>
+            <div className="leading-tight">
+              <h1 className="font-bold text-gray-800">PustakaKita</h1>
+              <p className="text-[10px] text-blue-600 font-semibold">SDN KLENDER 13</p>
+            </div>
+          </div>
+          <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-gray-600">
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+      );
+
+      const MobileBottomNav = () => (
+        <div className="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around py-2 px-2 z-40 pb-safe">
+          <button onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }} className={`flex flex-col items-center p-2 rounded-lg flex-1 ${activeTab === 'home' ? 'text-blue-600' : 'text-gray-400'}`}>
+            <BookOpen size={24} />
+            <span className="text-[10px] mt-1 font-semibold">Beranda</span>
+          </button>
+          <button onClick={() => { setActiveTab('search'); setIsMobileMenuOpen(false); }} className={`flex flex-col items-center p-2 rounded-lg flex-1 ${activeTab === 'search' ? 'text-blue-600' : 'text-gray-400'}`}>
+            <Search size={24} />
+            <span className="text-[10px] mt-1 font-semibold">Cari</span>
+          </button>
+          <button onClick={() => { setActiveTab('library'); setIsMobileMenuOpen(false); }} className={`flex flex-col items-center p-2 rounded-lg flex-1 ${activeTab === 'library' ? 'text-blue-600' : 'text-gray-400'}`}>
+            <Library size={24} />
+            <span className="text-[10px] mt-1 font-semibold">Rak Buku</span>
+          </button>
+        </div>
+      );
+
+      const MobileMenu = () => (
+        isMobileMenuOpen ? (
+          <div className="md:hidden fixed inset-0 z-30 bg-black/50 backdrop-blur-sm pt-16">
+            <div className="bg-white w-full h-auto rounded-b-3xl p-6 shadow-xl animate-fade-in">
+              <div className="flex items-center gap-4 mb-8 pb-6 border-b border-gray-100">
+                <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xl">
+                  {currentUser === 'student' ? 'B' : currentUser === 'teacher' ? 'G' : 'A'}
+                </div>
+                <div>
+                  <p className="font-bold text-lg text-gray-800">{currentUser === 'student' ? 'Budi' : currentUser === 'teacher' ? 'Bpk/Ibu Guru' : 'Admin'}</p>
+                  <p className="text-sm text-gray-500">{currentUser === 'student' ? 'Siswa Kelas 5A' : 'Staff SDN Klender 13'}</p>
+                </div>
+              </div>
+              <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 bg-red-50 text-red-600 font-bold py-4 rounded-2xl">
+                <LogOut size={20} /> Keluar Akun
+              </button>
+            </div>
+          </div>
+        ) : null
+      );
+
+      if (!currentUser) return <AuthScreen />;
+
+      return (
+        <div className="min-h-screen bg-gray-50 font-sans text-gray-900 selection:bg-blue-200">
+          <DesktopNav />
+          <MobileHeader />
+          <MobileMenu />
+          
+          {/* Main Content Area */}
+          <main className="max-w-7xl mx-auto pt-24 md:pt-32 pb-24 md:pb-12 px-4 md:px-6 lg:px-8">
+            {currentUser === 'student' && activeTab === 'home' && <StudentHome />}
+            {currentUser === 'student' && activeTab === 'search' && <StudentSearch />}
+            {currentUser === 'student' && activeTab === 'library' && <StudentLibrary />}
+            {currentUser === 'teacher' && <TeacherDashboard />}
+            {currentUser === 'admin' && <AdminDashboard />}
+          </main>
+
+          {currentUser === 'student' && <MobileBottomNav />}
+
+          {/* Global Toast Notification */}
+          {toastMessage && (
+            <div className="fixed top-20 md:top-24 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in">
+              <div className="bg-gray-900/90 backdrop-blur-sm text-white px-6 py-3 rounded-2xl shadow-2xl text-sm font-semibold flex items-center space-x-3 border border-gray-700">
+                <CheckCircle size={18} className="text-green-400"/>
+                <span>{toastMessage}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Menjalankan aplikasi React dan memasukkannya ke elemen #root
+    const root = createRoot(document.getElementById('root'));
+    root.render(<PustakaKita />);
+  </script>
+</body>
+</html>
